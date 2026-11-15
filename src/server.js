@@ -276,8 +276,11 @@ export const server = http.createServer(async (req, res) => {
       res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(out ?? { ok: true }));
     }
   } catch (e) {
-    if (!(e instanceof HttpError)) console.error(e);
-    res.writeHead(e.status ?? 502, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: e.message }));
+    if (!(e instanceof HttpError)) console.error(req.method, url.pathname, e);
+    // `fetch failed` ne dit rien : la vraie raison (ECONNREFUSED, ETIMEDOUT, DNS…) est dans `cause`.
+    const why = e.cause?.code || e.cause?.message;
+    const message = why ? `${e.message} (${why})` : e.message;
+    res.writeHead(e.status ?? 502, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: message }));
   }
 });
 

@@ -41,10 +41,11 @@ export async function deviceIcon(d, stats, name) {
 export async function installIcon(d, stats, id) {
   const host = hostOf(d, stats);
   if (!host) throw new Error('adresse IP de l\'appareil inconnue');
-  const img = await lametric(id);
+  const img = await lametric(id).catch((e) => { throw new Error(`galerie LaMetric injoignable : ${e.cause?.code || e.message}`); });
   const gif = img.type.includes('gif') ? img.data : pngToGif(img.data);
   const form = new FormData();
   form.append('file', new Blob([gif], { type: 'image/gif' }), `/ICONS/${id}.gif`);
-  const res = await fetch(`http://${host}/edit`, { method: 'POST', body: form, signal: AbortSignal.timeout(15_000) });
+  const res = await fetch(`http://${host}/edit`, { method: 'POST', body: form, signal: AbortSignal.timeout(15_000) })
+    .catch((e) => { throw new Error(`appareil ${host} injoignable depuis le serveur : ${e.cause?.code || e.message}`); });
   if (!res.ok) throw new Error(`l'appareil a refusé l'envoi (${res.status})`);
 }
