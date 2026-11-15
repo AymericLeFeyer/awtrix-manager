@@ -13,6 +13,8 @@ export const runtime = new Map();
 export const deviceState = new Map();
 
 const lastRun = new Map();
+/** Dernier message publié par (appareil, app) : on ne republie pas ce qui n'a pas changé. */
+const published = new Map();
 const inFlight = new Set();
 
 const provider = (id) => store.get().providers.find((p) => p.id === id);
@@ -60,13 +62,17 @@ export async function runWidget(widget) {
 }
 
 /** Publie le dernier message connu du widget (sans relire le provider). */
-export function publishWidget(widget, onlyDevices) {
+export function publishWidget(widget, onlyDevices, force = false) {
   const r = runtime.get(widget.id);
   if (!r || widget.enabled === false) return;
   for (const id of widget.devices ?? []) {
     if (onlyDevices && !onlyDevices.includes(id)) continue;
     const d = device(id);
-    if (d) bus.publish(`${d.prefix}/custom/${widget.name}`, r.payload);
+    if (!d) continue;
+    const key = `${d.prefix}/custom/${widget.name}`, body = JSON.stringify(r.payload);
+    if (!force && published.get(key) === body) continue;
+    bus.publish(key, r.payload);
+    published.set(key, body);
   }
 }
 
@@ -77,7 +83,7 @@ export function removeSlots(before, after) {
     if (keep.has(s)) continue;
     const [id, name] = s.split('\u0000');
     const d = device(id);
-    try { if (d) bus.publish(`${d.prefix}/custom/${name}`, ''); } catch { /* broker indisponible */ }
+    try { if (d) { bus.publish(`${d.prefix}/custom/${name}`, ''); published.delete(`${d.prefix}/custom/${name}`); } } catch { /* broker indisponible */ }
   }
 }
 
@@ -85,7 +91,7 @@ export function removeSlots(before, after) {
 export function syncDevice(id) {
   for (const w of store.get().widgets) {
     if ((w.devices ?? []).includes(id)) {
-      try { publishWidget(w, [id]); } catch { /* broker indisponible */ }
+      try { publishWidget(w, [id], true); } catch { /* broker indisponible */ }
     }
   }
 }
