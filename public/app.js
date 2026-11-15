@@ -19,15 +19,19 @@ function toast(msg, bad = false) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => (toastEl.className = ''), 3500);
 }
-const run = async (fn, ok) => { try { const r = await fn(); if (ok) toast(ok); await refresh(); return r; } catch (e) { toast(e.message, true); } };
+const run = async (fn, ok) => { try { const r = await fn(); if (ok) toast(ok); await refresh({ force: true }); return r; } catch (e) { toast(e.message, true); } };
 
 let S = null;
 let tab = 'widgets';
 const dlg = $('#dlg');
 
-async function refresh() {
+let lastJson = '';
+const editing = () => /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName) && document.activeElement.type !== 'checkbox';
+async function refresh({ force = false } = {}) {
   S = await api('GET', '/api/state');
-  if (!dlg.open) render();
+  // Le polling ne doit jamais redessiner pendant une saisie, ni si rien n'a changé.
+  const json = JSON.stringify(S);
+  if (!dlg.open && (force || (json !== lastJson && !editing()))) { render(); lastJson = json; }
   const pill = $('#mqtt-pill');
   pill.textContent = !S.mqtt.url ? 'MQTT non configuré' : S.mqtt.connected ? 'MQTT connecté' : `MQTT hors ligne${S.mqtt.error ? ` · ${S.mqtt.error}` : ''}`;
   pill.className = `pill ${S.mqtt.connected ? 'ok' : 'ko'}`;
@@ -36,6 +40,7 @@ async function refresh() {
 $('#tabs').addEventListener('click', (e) => {
   const b = e.target.closest('button'); if (!b) return;
   tab = b.dataset.tab;
+  lastJson = '';
   document.querySelectorAll('#tabs button').forEach((x) => x.classList.toggle('on', x === b));
   render();
 });
