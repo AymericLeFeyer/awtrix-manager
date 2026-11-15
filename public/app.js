@@ -126,7 +126,7 @@ function viewSettings() {
 function openDialog(content) { dlg.innerHTML = content; dlg.showModal(); bind(dlg); }
 dlg.addEventListener('close', () => { dlg.innerHTML = ''; render(); });
 const closeDlg = () => dlg.close();
-const val = (id) => $(`#${id}`, dlg).value;
+const val = (id) => $(`#${id}`, dlg.open ? dlg : document).value;
 
 function deviceForm(d = {}) {
   openDialog(html`<h3>${d.id ? 'Modifier' : 'Ajouter'} un appareil</h3>
