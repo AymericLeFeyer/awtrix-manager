@@ -29,6 +29,14 @@ export function isOnline(id) {
   return !!s && Date.now() - s.seen < ONLINE_MS;
 }
 
+/** Lit une valeur : texte fixe (providerId « static ») ou provider configuré. */
+export async function readSource(providerId, source) {
+  if (providerId === 'static') return { value: source.text };
+  const p = provider(providerId);
+  if (!p) throw new Error('provider introuvable');
+  return registry[p.type].read(p.config, source);
+}
+
 /** Lit la valeur chez le provider puis publie sur les appareils du widget. */
 export async function runWidget(widget) {
   if (inFlight.has(widget.id)) return;
@@ -36,9 +44,7 @@ export async function runWidget(widget) {
   lastRun.set(widget.id, Date.now());
   let reading = null, error = '';
   try {
-    const p = provider(widget.providerId);
-    if (!p) throw new Error('provider introuvable');
-    reading = await registry[p.type].read(p.config, widget.source);
+    reading = await readSource(widget.providerId, widget.source);
   } catch (e) {
     // Valeur inaccessible : on affiche « ??? » plutôt que de laisser une valeur périmée.
     error = e.message;

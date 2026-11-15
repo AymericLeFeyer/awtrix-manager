@@ -39,7 +39,7 @@ export function renderText(widget, { value, unit = '', name = '' }) {
   const f = widget.format ?? {};
   let shown = '???';
   if (value !== null && value !== undefined && value !== '') {
-    const asNumber = typeof value === 'number' ? value : /^-?\d+([.,]\d+)?$/.test(String(value).trim()) ? Number(String(value).replace(',', '.')) : NaN;
+    const asNumber = widget.providerId === 'static' ? NaN : typeof value === 'number' ? value : /^-?\d+([.,]\d+)?$/.test(String(value).trim()) ? Number(String(value).replace(',', '.')) : NaN;
     shown = Number.isNaN(asNumber) ? String(value) : formatNumber(asNumber, f);
   }
   const template = f.template || '{value}';

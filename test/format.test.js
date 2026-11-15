@@ -49,3 +49,7 @@ test('PNG → GIF produit un GIF valide', () => {
   assert.equal(gif.toString('ascii', 0, 6), 'GIF89a');
   assert.equal(gif[gif.length - 1], 0x3b);
 });
+
+test('texte fixe : jamais reformaté comme un nombre', () => {
+  assert.equal(renderText({ providerId: 'static', format: { compact: true } }, { value: '15000' }), '15000');
+});

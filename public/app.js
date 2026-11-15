@@ -45,7 +45,7 @@ $('#tabs').addEventListener('click', (e) => {
   render();
 });
 
-const providerName = (id) => S.providers.find((p) => p.id === id)?.name ?? '?';
+const providerName = (id) => id === 'static' ? 'Texte fixe' : S.providers.find((p) => p.id === id)?.name ?? '?';
 const iconUrl = (icon, deviceId) =>
   !icon ? '' : /^\d+$/.test(icon) ? `/api/icons/lametric/${icon}` : deviceId ? `/api/icons/device/${deviceId}/${encodeURIComponent(icon)}` : '';
 const ledHtml = (text, icon, color, rainbow, deviceId) => html`<span class="led">${icon ? R(html`<img src="${iconUrl(icon, deviceId)}" alt="" onerror="this.style.visibility='hidden'">`) : ''}<span class="t ${rainbow ? 'rainbow' : ''}" style="${color && !rainbow ? `color:${color}` : ''}">${text}</span></span>`;
@@ -58,8 +58,8 @@ function render() {
 
 // --- Widgets ---------------------------------------------------------------
 function viewWidgets() {
-  if (!S.devices.length || !S.providers.length) {
-    return html`<div class="card"><b>Pour commencer</b><p class="muted">Configure le broker dans l'onglet MQTT, ajoute au moins un appareil et un provider, puis crée tes widgets ici.</p></div>`;
+  if (!S.devices.length) {
+    return html`<div class="card"><b>Pour commencer</b><p class="muted">Configure le broker dans l'onglet MQTT et ajoute au moins un appareil. Les widgets de texte fixe n'ont besoin d'aucun provider ; les autres en demandent un.</p></div>`;
   }
   return html`
     <div class="bar"><h2>Widgets</h2><button class="btn primary" data-act="new-widget">+ Nouveau widget</button></div>
@@ -166,15 +166,16 @@ function providerForm(p) {
 let W = null; // widget en cours d'édition
 let previewTimer;
 function widgetForm(w) {
-  W = structuredClone(w ?? { name: '', label: '', enabled: true, providerId: S.providers[0].id, source: null, format: { template: '{value}' }, icon: '', color: '', rainbow: false, center: false, noScroll: false, duration: 10, refresh: 300, devices: S.devices.map((d) => d.id) });
+  W = structuredClone(w ?? { name: '', label: '', enabled: true, providerId: S.providers[0]?.id ?? 'static', source: null, format: { template: '{value}' }, icon: '', color: '', rainbow: false, center: false, noScroll: false, duration: 10, refresh: 300, devices: S.devices.map((d) => d.id) });
   openDialog(html`<h3>${w ? 'Modifier' : 'Nouveau'} widget</h3>
     <div class="two">
       <label class="f"><span>Nom de l'app AWTRIX</span><input id="w-name" value="${W.name}" placeholder="youtube"></label>
       <label class="f"><span>Libellé (interface)</span><input id="w-label" value="${W.label}" placeholder="Abonnés YouTube"></label>
     </div>
-    <label class="f"><span>Provider</span><select id="w-prov">${R(S.providers.map((p) => html`<option value="${p.id}" ${p.id === W.providerId ? 'selected' : ''}>${p.name}</option>`).join(''))}</select></label>
-    <label class="f"><span>Source de la valeur</span><input id="w-q" placeholder="Rechercher…"><div class="srcs" id="w-srcs"></div></label>
-    <div class="muted" id="w-selected"></div>
+    <label class="f"><span>Provider</span><select id="w-prov"><option value="static" ${W.providerId === 'static' ? 'selected' : ''}>✎ Texte fixe (abonnez-vous, pouce bleu…)</option>${R(S.providers.map((p) => html`<option value="${p.id}" ${p.id === W.providerId ? 'selected' : ''}>${p.name}</option>`).join(''))}</select></label>
+    <div id="w-static" hidden><label class="f"><span>Texte à afficher</span><input id="w-text" value="${W.source?.text ?? ''}" placeholder="Abonnez-vous !"></label></div>
+    <div id="w-dyn"><label class="f"><span>Source de la valeur</span><input id="w-q" placeholder="Rechercher…"><div class="srcs" id="w-srcs"></div></label>
+    <div class="muted" id="w-selected"></div></div>
     <div class="two" style="margin-top:12px">
       <label class="f"><span>Gabarit ({value} {unit} {name})</span><input id="w-tpl" value="${W.format.template}"></label>
       <label class="f"><span>Décimales</span><input id="w-dec" type="number" min="0" max="6" value="${W.format.decimals ?? ''}" placeholder="auto"></label>
@@ -193,10 +194,18 @@ function widgetForm(w) {
     <div class="f"><span class="muted">Installer sur</span><div class="row">${R(S.devices.map((d) => html`<label class="chk"><input type="checkbox" class="w-dev" value="${d.id}" ${W.devices.includes(d.id) ? 'checked' : ''}> ${d.name}</label>`).join(''))}</div></div>
     <div class="row sp"><div class="row"><span class="muted">Aperçu</span><span id="w-led"></span><span class="err" id="w-err"></span></div>
       <div class="actions" style="margin:0"><button class="btn" data-act="close">Annuler</button><button class="btn primary" data-act="save-widget" data-id="${w?.id ?? ''}">Enregistrer</button></div></div>`);
-  $('#w-prov', dlg).addEventListener('change', () => { W.providerId = val('w-prov'); W.source = null; loadSources(); updatePreview(); });
+  $('#w-prov', dlg).addEventListener('change', () => { W.providerId = val('w-prov'); W.source = null; syncMode(); loadSources(); updatePreview(); });
+  $('#w-text', dlg).addEventListener('input', () => updatePreview());
+  syncMode();
   ['w-tpl', 'w-dec', 'w-compact', 'w-icon', 'w-color', 'w-usecolor', 'w-rainbow'].forEach((id) => $(`#${id}`, dlg).addEventListener('input', () => { collect(); updatePreview(); }));
   $('#w-q', dlg).addEventListener('input', () => { clearTimeout(previewTimer); previewTimer = setTimeout(loadSources, 250); });
   loadSources(); updatePreview();
+}
+
+function syncMode() {
+  const st = val('w-prov') === 'static';
+  $('#w-static', dlg).hidden = !st;
+  $('#w-dyn', dlg).hidden = st;
 }
 
 function collect() {
@@ -207,11 +216,12 @@ function collect() {
   W.rainbow = $('#w-rainbow', dlg).checked; W.center = $('#w-center', dlg).checked; W.noScroll = $('#w-noscroll', dlg).checked; W.enabled = $('#w-enabled', dlg).checked;
   W.duration = Number(val('w-dur')); W.refresh = Number(val('w-ref'));
   W.devices = [...dlg.querySelectorAll('.w-dev:checked')].map((x) => x.value);
+  if (W.providerId === 'static') W.source = { text: val('w-text') };
 }
 
 let sources = [];
 async function loadSources() {
-  const box = $('#w-srcs', dlg); if (!box) return;
+  const box = $('#w-srcs', dlg); if (!box || val('w-prov') === 'static') return;
   box.innerHTML = '<div class="muted">Chargement…</div>';
   try {
     sources = await api('GET', `/api/providers/${val('w-prov')}/sources?q=${encodeURIComponent(val('w-q'))}`);

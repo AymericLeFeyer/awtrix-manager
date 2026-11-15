@@ -43,8 +43,10 @@ function cleanWidget(input, id) {
   const name = slug(input.name || '');
   if (!name) throw bad('nom requis');
   if (db().widgets.some((w) => w.id !== id && w.name === name)) throw bad(`un widget « ${name} » existe déjà`);
-  const p = providerOf(input.providerId);
+  const isStatic = input.providerId === 'static';
+  const p = isStatic ? { id: 'static' } : providerOf(input.providerId);
   if (!input.source || typeof input.source !== 'object') throw bad('source requise');
+  if (isStatic && !String(input.source.text ?? '').trim()) throw bad('texte requis');
   const f = input.format ?? {};
   const devices = (input.devices ?? []).filter((d) => db().devices.some((x) => x.id === d));
   return {
@@ -53,7 +55,7 @@ function cleanWidget(input, id) {
     label: String(input.label || '').trim(),
     enabled: input.enabled !== false,
     providerId: p.id,
-    source: input.source,
+    source: isStatic ? { text: String(input.source.text) } : input.source,
     format: {
       template: String(f.template ?? '{value}'),
       decimals: f.decimals === '' || f.decimals == null ? undefined : Math.max(0, Math.min(6, Number(f.decimals))),
@@ -233,10 +235,9 @@ route('POST', '/api/widgets/:id/refresh', async ({ params }) => {
 });
 // Aperçu d'un widget en cours d'édition, sans l'enregistrer ni rien publier.
 route('POST', '/api/preview', async ({ body }) => {
-  const p = providerOf(body.providerId);
   let reading;
-  try { reading = await registry[p.type].read(p.config, body.source); } catch (e) { return { text: '???', error: e.message }; }
-  return { text: buildPayload({ format: body.format, icon: '' }, reading).text, reading };
+  try { reading = await engine.readSource(body.providerId, body.source); } catch (e) { return { text: '???', error: e.message }; }
+  return { text: buildPayload({ format: body.format, providerId: body.providerId }, reading).text, reading };
 });
 
 // Icônes
