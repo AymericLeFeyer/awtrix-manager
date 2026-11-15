@@ -145,6 +145,15 @@ route('POST', '/api/devices/:id/:action', async ({ params, body }) => {
     case 'previous': engine.bus.publish(t('previousapp'), ''); break;
     case 'brightness': engine.bus.publish(t('settings'), { ABRI: false, BRI: Math.max(0, Math.min(255, Number(body.value) || 0)) }); break;
     case 'notify': engine.bus.publish(t('notify'), { text: String(body.text || ''), icon: body.icon || undefined, duration: 5 }); break;
+    case 'native': {
+      // Apps natives de l'AWTRIX (heure, date, météo…) : réglage conservé par l'appareil lui-même.
+      const keys = ['TIM', 'DAT', 'TEMP', 'HUM', 'BAT'];
+      const flags = Object.fromEntries(keys.map((k) => [k, !!body[k]]));
+      engine.bus.publish(t('settings'), flags);
+      d.native = flags;
+      store.save();
+      break;
+    }
     case 'reboot': engine.bus.publish(t('reboot'), ''); break;
     case 'sync': engine.syncDevice(d.id); break;
     case 'icons': return icons.listDeviceIcons(d, stats(d.id));

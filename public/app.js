@@ -91,6 +91,7 @@ function viewDevices() {
           <button class="btn sm" data-act="dev" data-do="previous" data-id="${d.id}">◀</button>
           <button class="btn sm" data-act="dev" data-do="next" data-id="${d.id}">▶</button>
           <button class="btn sm" data-act="dev" data-do="sync" data-id="${d.id}">Renvoyer les widgets</button>
+          <button class="btn sm" data-act="native" data-id="${d.id}">Apps natives</button>
           <button class="btn sm" data-act="notify" data-id="${d.id}">Notification test</button>
           <button class="btn sm danger" data-act="dev" data-do="reboot" data-id="${d.id}">Redémarrer</button>
           <label class="muted">Luminosité <input type="range" min="0" max="255" value="${st?.bri ?? 100}" style="width:140px" data-act="bri" data-id="${d.id}"></label>
@@ -134,6 +135,14 @@ function deviceForm(d = {}) {
     <label class="f"><span>Préfixe MQTT (réglé sur l'AWTRIX)</span><input id="d-prefix" value="${d.prefix}" placeholder="awtrix_salon"></label>
     <label class="f"><span>Adresse IP (facultatif : sinon lue dans les stats)</span><input id="d-host" value="${d.host}" placeholder="192.168.68.50"></label>
     <div class="actions"><button class="btn" data-act="close">Annuler</button><button class="btn primary" data-act="save-device" data-id="${d.id ?? ''}">Enregistrer</button></div>`);
+}
+
+const NATIVE = [['TIM', 'Heure'], ['DAT', 'Date'], ['TEMP', 'Température'], ['HUM', 'Humidité'], ['BAT', 'Batterie']];
+function nativeForm(d) {
+  openDialog(html`<h3>Apps natives · ${d.name}</h3>
+    <p class="muted">Coche celles à afficher dans la rotation. Seuls tes widgets resteront si tu décoches tout.</p>
+    <div class="col">${R(NATIVE.map(([k, label]) => html`<label class="chk" style="display:flex;margin-bottom:8px"><input type="checkbox" class="nat" value="${k}" ${d.native?.[k] === false ? '' : 'checked'}> ${label}</label>`).join(''))}</div>
+    <div class="actions"><button class="btn" data-act="native-none">Tout masquer</button><button class="btn" data-act="close">Annuler</button><button class="btn primary" data-act="native-apply" data-id="${d.id}">Appliquer</button></div>`);
 }
 
 function providerForm(p) {
@@ -276,6 +285,13 @@ function bind(root) {
       case 'del-device': if (confirm(`Supprimer « ${dev.name} » ?`)) run(() => api('DELETE', `/api/devices/${id}`)); return;
       case 'dev': return run(() => api('POST', `/api/devices/${id}/${el.dataset.do}`, { on: el.dataset.on === '1' }), 'Envoyé');
       case 'notify': { const text = prompt('Texte de la notification', 'Coucou !'); if (text) run(() => api('POST', `/api/devices/${id}/notify`, { text }), 'Envoyé'); return; }
+      case 'native': return nativeForm(dev);
+      case 'native-apply': {
+        const body = Object.fromEntries([...dlg.querySelectorAll('.nat')].map((x) => [x.value, x.checked]));
+        try { await api('POST', `/api/devices/${id}/native`, body); closeDlg(); toast('Appliqué'); await refresh({ force: true }); } catch (err) { toast(err.message, true); }
+        return;
+      }
+      case 'native-none': dlg.querySelectorAll('.nat').forEach((x) => (x.checked = false)); return;
       case 'new-provider': return providerForm();
       case 'edit-provider': return providerForm(prov);
       case 'save-provider': {
