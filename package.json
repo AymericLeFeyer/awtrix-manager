@@ -1,0 +1,16 @@
+{
+  "name": "awtrix-manager",
+  "version": "1.0.0",
+  "description": "Interface de gestion de plusieurs AWTRIX via MQTT : providers (Creator Studio, Home Assistant…) → widgets → afficheurs",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node --test test/"
+  },
+  "dependencies": {
+    "mqtt": "^5.16.1"
+  },
+  "engines": { "node": ">=22" }
+}

@@ -1,0 +1,19 @@
+services:
+  awtrix-manager:
+    image: ghcr.io/aymericlefeyer/awtrix-manager:${TAG:-latest}
+    container_name: awtrix-manager
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ:-Europe/Paris}
+      # Valeurs initiales du broker MQTT (modifiables ensuite dans l'interface).
+      MQTT_URL: ${MQTT_URL:-}
+      MQTT_USERNAME: ${MQTT_USERNAME:-}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-}
+    volumes:
+      - awtrix-manager-data:/app/data
+    ports:
+      - '${WEB_PORT:-4444}:4444'
+
+volumes:
+  awtrix-manager-data:
+    name: awtrix-manager-data
