@@ -17,6 +17,9 @@ providers (Creator Studio, Home Assistant, API JSON…) ─► widgets ─► MQ
   rafraîchi à son intervalle ; décocher/supprimer retire l'app de l'appareil.
 - **Icônes** : comme l'interface AWTRIX, on utilise les ID de la galerie LaMetric. « Installer » télécharge l'icône
   (convertie en GIF) dans `/ICONS` de l'appareil ; on peut aussi choisir parmi les icônes déjà présentes sur l'appareil.
+- **Notifications** : modèles enregistrés (texte, icône, couleur, durée, « reste affichée », son RTTTL, réveil de l'écran)
+  envoyables en un clic ou à la volée, sur un ou plusieurs appareils. Déclenchables depuis Home Assistant / une
+  automatisation : `POST /api/notify` avec `{"preset":"nom","devices":["Salon"]}` (ou directement `{"text":"…"}`).
 - Les apps custom vivent en RAM côté AWTRIX : elles sont renvoyées automatiquement après un redémarrage de l'appareil
   ou une reconnexion au broker.
 

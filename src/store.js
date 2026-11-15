@@ -14,6 +14,7 @@ const empty = () => ({
   devices: [],
   providers: [],
   widgets: [],
+  notifications: [],
 });
 
 let db = empty();

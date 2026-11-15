@@ -6,7 +6,7 @@ import * as store from './store.js';
 import * as engine from './engine.js';
 import { registry, describeTypes, maskConfig, mergeConfig } from './providers/index.js';
 import * as icons from './icons.js';
-import { slug, buildPayload } from './format.js';
+import { slug, buildPayload, buildNotify } from './format.js';
 
 const PUBLIC = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml' };
@@ -23,10 +23,11 @@ const deviceOf = (id) => find(db().devices, id, 'appareil');
 const widgetOf = (id) => find(db().widgets, id, 'widget');
 
 function snapshot() {
-  const { mqtt, devices, providers, widgets } = db();
+  const { mqtt, devices, providers, widgets, notifications } = db();
   return {
     mqtt: { url: mqtt.url, username: mqtt.username, password: mqtt.password ? '••••••••' : '', connected: engine.bus.connected, error: engine.bus.error },
     types: describeTypes(),
+    notifications,
     devices: devices.map((d) => {
       const s = engine.deviceState.get(d.id);
       return { ...d, online: engine.isOnline(d.id), stats: s?.stats ?? null };
@@ -238,6 +239,47 @@ route('POST', '/api/preview', async ({ body }) => {
   let reading;
   try { reading = await engine.readSource(body.providerId, body.source); } catch (e) { return { text: '???', error: e.message }; }
   return { text: buildPayload({ format: body.format, providerId: body.providerId }, reading).text, reading };
+});
+
+// Notifications : modèles enregistrés + envoi (aussi utilisable depuis Home Assistant : POST /api/notify)
+function cleanNotification(i, id) {
+  const name = String(i.name || '').trim();
+  if (!name) throw bad('nom requis');
+  if (db().notifications.some((n) => n.id !== id && n.name.toLowerCase() === name.toLowerCase())) throw bad('ce nom existe déjà');
+  return {
+    id: id ?? store.newId(), name, text: String(i.text ?? ''), icon: String(i.icon ?? '').trim(),
+    color: /^#[0-9a-f]{6}$/i.test(i.color || '') ? i.color : '', rainbow: !!i.rainbow, hold: !!i.hold, wakeup: !!i.wakeup,
+    duration: Math.max(0, Number(i.duration) || 0), sound: String(i.sound ?? '').trim(),
+    devices: (i.devices ?? []).filter((d) => db().devices.some((x) => x.id === d)),
+  };
+}
+route('POST', '/api/notifications', ({ body }) => { const n = cleanNotification(body); db().notifications.push(n); store.save(); return n; });
+route('PUT', '/api/notifications/:id', ({ params, body }) => {
+  const n = find(db().notifications, params.id, 'notification');
+  Object.assign(n, cleanNotification(body, n.id)); store.save(); return n;
+});
+route('DELETE', '/api/notifications/:id', ({ params }) => {
+  db().notifications = db().notifications.filter((n) => n.id !== find(db().notifications, params.id, 'notification').id);
+  store.save(); return { ok: true };
+});
+// Cibles : ids ou noms d'appareils ; vide = tous les appareils (ou ceux du modèle).
+const sendNotification = ({ body }) => {
+  const preset = body.preset ? db().notifications.find((n) => n.id === body.preset || n.name.toLowerCase() === String(body.preset).toLowerCase()) : null;
+  if (body.preset && !preset) throw new HttpError(404, 'modèle introuvable');
+  const n = { ...preset, ...Object.fromEntries(Object.entries(body).filter(([k, v]) => k !== 'preset' && k !== 'devices' && v !== undefined)) };
+  if (!String(n.text ?? '').trim()) throw bad('texte requis');
+  const wanted = body.devices?.length ? body.devices : preset?.devices?.length ? preset.devices : null;
+  const targets = wanted ? db().devices.filter((d) => wanted.includes(d.id) || wanted.includes(d.name) || wanted.includes(d.prefix)) : db().devices;
+  if (!targets.length) throw bad('aucun appareil ciblé');
+  const payload = buildNotify(n);
+  for (const d of targets) engine.bus.publish(`${d.prefix}/notify`, payload);
+  return { ok: true, sent: targets.map((d) => d.name) };
+};
+route('POST', '/api/notify', sendNotification);
+route('POST', '/api/notifications/send', sendNotification);
+route('POST', '/api/notifications/dismiss', ({ body }) => {
+  for (const d of db().devices.filter((x) => !body.devices?.length || body.devices.includes(x.id))) engine.bus.publish(`${d.prefix}/notify/dismiss`, '');
+  return { ok: true };
 });
 
 // Icônes

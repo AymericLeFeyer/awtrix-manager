@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { flatten, getPath, formatNumber, renderText, buildPayload, slug, slots } from '../src/format.js';
+import { flatten, getPath, formatNumber, renderText, buildPayload, slug, slots, buildNotify } from '../src/format.js';
 import { pngToGif } from '../src/png2gif.js';
 import { cleanHost } from '../src/icons.js';
 import zlib from 'node:zlib';
@@ -59,4 +59,9 @@ test('cleanHost', () => {
   assert.equal(cleanHost('http://192.168.68.95/'), '192.168.68.95');
   assert.equal(cleanHost(' 192.168.68.95:80 '), '192.168.68.95:80');
   assert.equal(cleanHost(''), '');
+});
+
+test('buildNotify', () => {
+  assert.deepEqual(buildNotify({ text: 'Abonne-toi', icon: '6491', duration: 8, sound: 'beep:d=4,o=5,b=100:c' }), { text: 'Abonne-toi', icon: '6491', rtttl: 'beep:d=4,o=5,b=100:c', duration: 8 });
+  assert.deepEqual(buildNotify({ text: 'x', hold: true, duration: 5, wakeup: true }), { text: 'x', hold: true, wakeup: true });
 });

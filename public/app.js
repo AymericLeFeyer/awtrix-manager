@@ -52,7 +52,7 @@ const ledHtml = (text, icon, color, rainbow, deviceId) => html`<span class="led"
 
 function render() {
   const v = $('#view');
-  v.innerHTML = { widgets: viewWidgets, devices: viewDevices, providers: viewProviders, settings: viewSettings }[tab]();
+  v.innerHTML = { widgets: viewWidgets, notifications: viewNotifications, devices: viewDevices, providers: viewProviders, settings: viewSettings }[tab]();
   bind(v);
 }
 
@@ -73,6 +73,36 @@ function viewWidgets() {
       </tr>`).join(''))}
       ${R(S.widgets.length ? '' : `<tr><td colspan="${S.devices.length + 3}" class="muted">Aucun widget.</td></tr>`)}
     </table></div>`;
+}
+
+// --- Notifications ----------------------------------------------------------
+function viewNotifications() {
+  const devs = (ids) => (ids?.length ? ids.map((i) => S.devices.find((d) => d.id === i)?.name).filter(Boolean).join(', ') : 'tous les appareils');
+  return html`
+    <div class="bar"><h2>Notifications</h2><div><button class="btn" data-act="dismiss">Fermer la notification en cours</button> <button class="btn primary" data-act="new-notif">+ Nouvelle notification</button></div></div>
+    <p class="muted">S'affichent par-dessus les apps, puis disparaissent. Enregistre un modèle pour le renvoyer en un clic, ou le déclencher depuis Home Assistant : <code>POST /api/notify {"preset":"nom"}</code>.</p>
+    ${R(S.notifications.map((n) => html`<div class="card row sp"><div class="row">${R(ledHtml(n.text || '…', n.icon, n.color, n.rainbow, S.devices[0]?.id))}<div><b>${n.name}</b><div class="muted">${devs(n.devices)}${n.hold ? ' · reste affichée' : n.duration ? ` · ${n.duration} s` : ''}${n.sound ? ' · son' : ''}</div></div></div>
+      <div><button class="btn sm primary" data-act="send-notif" data-id="${n.id}">Envoyer</button> <button class="btn sm" data-act="edit-notif" data-id="${n.id}">Modifier</button> <button class="btn sm danger" data-act="del-notif" data-id="${n.id}">✕</button></div></div>`).join(''))}
+    ${R(S.notifications.length ? '' : '<div class="card muted">Aucun modèle. Crée-en un, par exemple « Abonne-toi ».</div>')}`;
+}
+
+function notifForm(n) {
+  const x = n ?? { name: '', text: '', icon: '', color: '', rainbow: false, hold: false, wakeup: false, duration: 8, sound: '', devices: S.devices.map((d) => d.id) };
+  openDialog(html`<h3>${n ? 'Modifier' : 'Nouvelle'} notification</h3>
+    <div class="two"><label class="f"><span>Nom du modèle</span><input id="n-name" value="${x.name}" placeholder="Abonne-toi"></label>
+    <label class="f"><span>Icône (ID LaMetric ou nom)</span><input id="n-icon" value="${x.icon}" placeholder="6491"></label></div>
+    <label class="f"><span>Texte</span><input id="n-text" value="${x.text}" placeholder="Abonnez-vous !"></label>
+    <div class="two"><label class="f"><span>Couleur</span><div class="row"><input type="color" id="n-color" value="${x.color || '#ffffff'}"><label class="chk"><input type="checkbox" id="n-usecolor" ${x.color ? 'checked' : ''}> personnalisée</label><label class="chk"><input type="checkbox" id="n-rainbow" ${x.rainbow ? 'checked' : ''}> arc-en-ciel</label></div></label>
+    <label class="f"><span>Durée (s)</span><input id="n-dur" type="number" min="0" value="${x.duration}"></label></div>
+    <label class="f"><span>Son (RTTTL, facultatif — nécessite un AWTRIX avec buzzer)</span><input id="n-sound" value="${x.sound}" placeholder="two_short:d=4,o=5,b=100:16e6,16e6"></label>
+    <div class="row" style="margin-bottom:12px"><label class="chk"><input type="checkbox" id="n-hold" ${x.hold ? 'checked' : ''}> Reste affichée jusqu'à un appui sur un bouton</label><label class="chk"><input type="checkbox" id="n-wakeup" ${x.wakeup ? 'checked' : ''}> Rallume l'écran</label></div>
+    <div class="f"><span class="muted">Envoyer sur</span><div class="row">${R(S.devices.map((d) => html`<label class="chk"><input type="checkbox" class="n-dev" value="${d.id}" ${x.devices.includes(d.id) ? 'checked' : ''}> ${d.name}</label>`).join(''))}</div></div>
+    <div class="actions"><button class="btn" data-act="close">Annuler</button><button class="btn" data-act="notif-now">Envoyer maintenant</button><button class="btn primary" data-act="save-notif" data-id="${n?.id ?? ''}">Enregistrer le modèle</button></div>`);
+}
+function collectNotif() {
+  return { name: val('n-name'), text: val('n-text'), icon: val('n-icon').trim(), color: $('#n-usecolor', dlg).checked ? val('n-color') : '',
+    rainbow: $('#n-rainbow', dlg).checked, hold: $('#n-hold', dlg).checked, wakeup: $('#n-wakeup', dlg).checked,
+    duration: Number(val('n-dur')), sound: val('n-sound'), devices: [...dlg.querySelectorAll('.n-dev:checked')].map((c) => c.value) };
 }
 
 // --- Appareils ------------------------------------------------------------
@@ -295,6 +325,21 @@ function bind(root) {
       case 'del-device': if (confirm(`Supprimer « ${dev.name} » ?`)) run(() => api('DELETE', `/api/devices/${id}`)); return;
       case 'dev': return run(() => api('POST', `/api/devices/${id}/${el.dataset.do}`, { on: el.dataset.on === '1' }), 'Envoyé');
       case 'notify': { const text = prompt('Texte de la notification', 'Coucou !'); if (text) run(() => api('POST', `/api/devices/${id}/notify`, { text }), 'Envoyé'); return; }
+      case 'new-notif': return notifForm();
+      case 'edit-notif': return notifForm(S.notifications.find((n) => n.id === id));
+      case 'del-notif': if (confirm('Supprimer ce modèle ?')) run(() => api('DELETE', `/api/notifications/${id}`)); return;
+      case 'send-notif': return run(async () => { const r = await api('POST', '/api/notifications/send', { preset: id }); toast(`Envoyée : ${r.sent.join(', ')}`); });
+      case 'dismiss': return run(() => api('POST', '/api/notifications/dismiss', {}), 'Fermée');
+      case 'notif-now': {
+        const n = collectNotif();
+        if (!n.devices.length) return toast('Coche au moins un appareil', true);
+        try { const r = await api('POST', '/api/notifications/send', n); toast(`Envoyée : ${r.sent.join(', ')}`); } catch (err) { toast(err.message, true); }
+        return;
+      }
+      case 'save-notif': {
+        try { await api(id ? 'PUT' : 'POST', id ? `/api/notifications/${id}` : '/api/notifications', collectNotif()); closeDlg(); toast('Modèle enregistré'); await refresh({ force: true }); } catch (err) { toast(err.message, true); }
+        return;
+      }
       case 'native': return nativeForm(dev);
       case 'native-apply': {
         const body = Object.fromEntries([...dlg.querySelectorAll('.nat')].map((x) => [x.value, x.checked]));

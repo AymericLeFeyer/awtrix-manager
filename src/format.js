@@ -67,3 +67,16 @@ export function slots(widget) {
   if (!widget || widget.enabled === false) return new Set();
   return new Set((widget.devices ?? []).map((d) => `${d}\u0000${widget.name}`));
 }
+
+/** Message publié sur `<prefix>/notify` (voir la doc AWTRIX : hold, wakeup, sound…). */
+export function buildNotify(n) {
+  const p = { text: String(n.text ?? '') };
+  if (n.icon) p.icon = String(n.icon);
+  if (n.color) p.color = n.color;
+  if (n.rainbow) p.rainbow = true;
+  if (n.hold) p.hold = true; // reste affichée jusqu'à un appui sur un bouton
+  if (n.wakeup) p.wakeup = true; // rallume la matrice si elle est éteinte
+  if (n.sound) p.rtttl = String(n.sound);
+  if (!n.hold && Number(n.duration) > 0) p.duration = Number(n.duration);
+  return p;
+}
