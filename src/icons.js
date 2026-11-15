@@ -14,7 +14,9 @@ export async function lametric(id) {
   return out;
 }
 
-const hostOf = (d, stats) => d.host || stats?.ip_address;
+/** Accepte « 192.168.1.5 », « http://192.168.1.5/ »… et ne garde que hôte[:port]. */
+export const cleanHost = (h) => String(h || '').trim().replace(/^[a-z]+:\/\//i, '').replace(/\/.*$/, '');
+const hostOf = (d, stats) => cleanHost(d.host) || stats?.ip_address;
 
 /** Icônes présentes sur l'appareil (/ICONS), via l'explorateur de fichiers du firmware. */
 export async function listDeviceIcons(d, stats) {

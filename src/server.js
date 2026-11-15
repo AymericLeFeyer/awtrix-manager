@@ -77,7 +77,7 @@ function cleanDevice(input, id) {
   if (!input.name?.trim() || !prefix) throw bad('nom et préfixe MQTT requis');
   if (/[+#\s]/.test(prefix)) throw bad('préfixe MQTT invalide');
   if (db().devices.some((d) => d.id !== id && d.prefix === prefix)) throw bad('ce préfixe est déjà utilisé');
-  return { id: id ?? store.newId(), name: input.name.trim(), prefix, host: String(input.host || '').trim() };
+  return { id: id ?? store.newId(), name: input.name.trim(), prefix, host: icons.cleanHost(input.host) };
 }
 
 const stats = (id) => engine.deviceState.get(id)?.stats;

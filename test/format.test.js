@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { flatten, getPath, formatNumber, renderText, buildPayload, slug, slots } from '../src/format.js';
 import { pngToGif } from '../src/png2gif.js';
+import { cleanHost } from '../src/icons.js';
 import zlib from 'node:zlib';
 
 test('flatten / getPath', () => {
@@ -52,4 +53,10 @@ test('PNG → GIF produit un GIF valide', () => {
 
 test('texte fixe : jamais reformaté comme un nombre', () => {
   assert.equal(renderText({ providerId: 'static', format: { compact: true } }, { value: '15000' }), '15000');
+});
+
+test('cleanHost', () => {
+  assert.equal(cleanHost('http://192.168.68.95/'), '192.168.68.95');
+  assert.equal(cleanHost(' 192.168.68.95:80 '), '192.168.68.95:80');
+  assert.equal(cleanHost(''), '');
 });
